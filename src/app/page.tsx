@@ -35,11 +35,65 @@ const AUDIO_PLAYER_OPTIONS: YT.PlayerOptions = {
   }
 };
 
+const MAX_URL_PAYLOAD_LENGTH = 1500;
+
+type EncodedClip = ["v" | "a", string, number, number, number, number];
+
+const roundTime = (value: number) => Math.round(value * 100) / 100;
+
+const encodeClips = (clips: Clip[]) => {
+  const payload = {
+    v: 1,
+    c: clips.map(
+      (clip): EncodedClip => [
+        clip.kind === "video" ? "v" : "a",
+        clip.videoId,
+        roundTime(clip.timelineStartSec),
+        roundTime(clip.inSec),
+        roundTime(clip.outSec),
+        Math.round(clip.volume)
+      ]
+    )
+  };
+
+  const json = JSON.stringify(payload);
+  const base64 = btoa(json).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  return base64;
+};
+
+const decodeClips = (encoded: string): Clip[] => {
+  const normalized = encoded.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+  const json = atob(padded);
+  const data = JSON.parse(json) as { v: number; c: EncodedClip[] };
+
+  if (!data || data.v !== 1 || !Array.isArray(data.c)) return [];
+
+  return data.c
+    .map((tuple) => {
+      const [kind, videoId, start, inSec, outSec, volume] = tuple;
+      if (!videoId) return null;
+      return {
+        id: `clip_${Math.random().toString(36).slice(2)}`,
+        kind: kind === "v" ? "video" : "audio",
+        url: `https://youtu.be/${videoId}`,
+        videoId,
+        timelineStartSec: Number(start),
+        inSec: Number(inSec),
+        outSec: Number(outSec),
+        volume: Number(volume)
+      } satisfies Clip;
+    })
+    .filter(Boolean) as Clip[];
+};
+
 export default function Home() {
   const [clips, setClips] = useState<Clip[]>([]);
   const [playheadSec, setPlayheadSec] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [apiReady, setApiReady] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [importText, setImportText] = useState("");
 
   const videoContainerRef = useRef<HTMLDivElement | null>(null);
   const videoPlayerRef = useRef<any | null>(null);
@@ -52,6 +106,13 @@ export default function Home() {
 
   const videoClips = useMemo(() => clips.filter((clip) => clip.kind === "video"), [clips]);
   const audioClips = useMemo(() => clips.filter((clip) => clip.kind === "audio"), [clips]);
+
+  const encodedClips = useMemo(() => {
+    if (clips.length === 0) return "";
+    return encodeClips(clips);
+  }, [clips]);
+
+  const encodedTooLong = encodedClips.length > MAX_URL_PAYLOAD_LENGTH;
 
   const totalDuration = useMemo(() => {
     return clips.reduce((maxDuration, clip) => {
@@ -92,6 +153,21 @@ export default function Home() {
 
     return errors;
   }, [clips, videoClips]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const payload = params.get("p");
+    if (payload) {
+      try {
+        const imported = decodeClips(payload);
+        if (imported.length > 0) {
+          setClips(imported);
+        }
+      } catch {
+        setSaveMessage("Could not load data from URL.");
+      }
+    }
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -267,6 +343,53 @@ export default function Home() {
     resyncRef.current = false;
   }, [apiReady, playheadSec, isPlaying, videoClips, audioClips]);
 
+  const handleSaveToUrl = () => {
+    if (!encodedClips || encodedTooLong) return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("p", encodedClips);
+    window.history.replaceState({}, "", url.toString());
+    setSaveMessage("Saved to URL.");
+  };
+
+  const handleCopy = async () => {
+    if (!encodedClips) return;
+    try {
+      await navigator.clipboard.writeText(encodedClips);
+      setSaveMessage("Copied setup to clipboard.");
+    } catch {
+      setSaveMessage("Clipboard copy failed.");
+    }
+  };
+
+  const handleImport = () => {
+    const raw = importText.trim();
+    if (!raw) return;
+
+    let payload = raw;
+    try {
+      if (raw.startsWith("http://") || raw.startsWith("https://")) {
+        const url = new URL(raw);
+        payload = url.searchParams.get("p") ?? raw;
+      } else if (raw.includes("p=")) {
+        const url = new URL(raw, window.location.origin);
+        payload = url.searchParams.get("p") ?? raw;
+      }
+
+      const imported = decodeClips(payload);
+      if (imported.length === 0) {
+        setSaveMessage("Import failed. String is invalid.");
+        return;
+      }
+      setClips(imported);
+      setPlayheadSec(0);
+      setIsPlaying(false);
+      resyncRef.current = true;
+      setSaveMessage("Imported setup.");
+    } catch {
+      setSaveMessage("Import failed. String is invalid.");
+    }
+  };
+
   const handlePlay = () => {
     if (!apiReady || validationErrors.length > 0 || clips.length === 0) return;
     startWallRef.current = performance.now() - playheadSec * 1000;
@@ -364,6 +487,46 @@ export default function Home() {
             onStop={handleStop}
             onSeek={handleSeek}
           />
+          <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-300">
+            <div className="font-semibold text-slate-200">Share / Import</div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleSaveToUrl}
+                disabled={!encodedClips || encodedTooLong}
+                className="rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-100 transition hover:border-slate-500 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Save to URL
+              </button>
+              <button
+                type="button"
+                onClick={handleCopy}
+                disabled={!encodedClips}
+                className="rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-100 transition hover:border-slate-500 hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Copy setup
+              </button>
+            </div>
+            {encodedTooLong ? (
+              <div className="mt-2 text-xs text-amber-200">It&apos;s too complicated to save.</div>
+            ) : null}
+            {saveMessage ? <div className="mt-2 text-xs text-slate-400">{saveMessage}</div> : null}
+            <div className="mt-3 flex gap-2">
+              <input
+                value={importText}
+                onChange={(event) => setImportText(event.target.value)}
+                placeholder="Paste setup string or URL"
+                className="flex-1 rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-slate-100"
+              />
+              <button
+                type="button"
+                onClick={handleImport}
+                className="rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-100 transition hover:border-slate-500 hover:bg-slate-700"
+              >
+                Import
+              </button>
+            </div>
+          </div>
           <div className="rounded-xl border border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-300">
             <div className="font-semibold text-slate-200">Timeline</div>
             <div className="mt-2">

@@ -1,5 +1,3 @@
-export {};
-
 declare namespace YT {
   type PlayerOptions = {
     height?: string;
@@ -23,11 +21,9 @@ declare namespace YT {
   const Player: new (container: HTMLElement, options: PlayerOptions) => Player;
 }
 
-declare global {
-  interface Window {
-    YT: typeof YT;
-    onYouTubeIframeAPIReady?: () => void;
-  }
-
-  const YT: typeof YT;
+interface Window {
+  YT: typeof YT;
+  onYouTubeIframeAPIReady?: () => void;
 }
+
+declare const YT: typeof YT;
