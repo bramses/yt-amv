@@ -1,5 +1,7 @@
 # yt-amv
 
+[**EXAMPLE - HIT PLAY BUTTON ON RIGHT**](https://yt-amv.vercel.app/?p=eyJ2IjoxLCJjIjpbWyJ2IiwiVUZ4QUtzTDFHNlUiLDAsMCwyNzAsMF0sWyJhIiwiWEtleFg2eHNfSHciLDAsMCwyNjAsMTAwXSxbImEiLCJ2bl9jdXdDMVhFTSIsMjU3LDI1NywyNzAsMTAwXV19)
+
 Non-linear YouTube mashup editor. Add video and audio clips with timeline start + in/out, then play a global timeline where only one video is active at a time and multiple audio clips can overlap.
 
 ## Features
