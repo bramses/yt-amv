@@ -314,6 +314,24 @@ export default function Home() {
         <p className="text-sm text-slate-300">
           Build non-linear mashups with one video track and layered audio. Use mm:ss or hh:mm:ss for time fields.
         </p>
+        <div className="flex flex-wrap gap-3 text-xs text-slate-400">
+          <a
+            href="https://github.com/bramses/yt-amv"
+            target="_blank"
+            rel="noreferrer"
+            className="underline decoration-slate-600 underline-offset-4 hover:text-slate-200"
+          >
+            GitHub
+          </a>
+          <a
+            href="https://www.bramadams.dev/"
+            target="_blank"
+            rel="noreferrer"
+            className="underline decoration-slate-600 underline-offset-4 hover:text-slate-200"
+          >
+            bramadams.dev
+          </a>
+        </div>
       </header>
 
       <ValidationBanner errors={validationErrors} />
