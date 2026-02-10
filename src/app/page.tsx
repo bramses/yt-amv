@@ -92,6 +92,7 @@ export default function Home() {
   const [playheadSec, setPlayheadSec] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [apiReady, setApiReady] = useState(false);
+  const [hasPlayedOnce, setHasPlayedOnce] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [importText, setImportText] = useState("");
 
@@ -394,6 +395,7 @@ export default function Home() {
     if (!apiReady || validationErrors.length > 0 || clips.length === 0) return;
     startWallRef.current = performance.now() - playheadSec * 1000;
     setIsPlaying(true);
+    setHasPlayedOnce(true);
     resyncRef.current = true;
   };
 
@@ -482,6 +484,7 @@ export default function Home() {
             playheadSec={playheadSec}
             durationSec={totalDuration}
             disabled={playDisabled}
+            attentionPulse={!hasPlayedOnce && !playDisabled}
             onPlay={handlePlay}
             onPause={handlePause}
             onStop={handleStop}
